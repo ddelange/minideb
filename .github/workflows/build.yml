@@ -60,7 +60,7 @@ jobs:
               run: sudo bash buildone_snapshot ${{ matrix.dist }} "$(./snapshot_id)" ${{ matrix.arch }}
             - name: Tag latest
               if: matrix.dist == 'buster' && github.ref == 'refs/heads/master'
-              run: sudo docker tag "bitnami/minideb:${{ matrix.dist }}-${{ matrix.arch }}" "bitnami/minideb:latest-${{ matrix.arch }}"
+              run: sudo docker tag "alekitto/minideb:${{ matrix.dist }}-${{ matrix.arch }}" "alekitto/minideb:latest-${{ matrix.arch }}"
             - name: Push
               if: github.ref == 'refs/heads/master'
               run: sudo bash pushone ${{ matrix.dist }} ${{ matrix.arch }}
