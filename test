@@ -16,10 +16,15 @@ function test() {
     test_extra_args '' "$@"
 }
 
+bind_mounts=( )
+for qemu_static_file in /usr/bin/qemu-*-static; do
+    bind_mounts+=( -v="$qemu_static_file:$qemu_static_file" )
+done
+
 function test_extra_args() {
     local extra_args=$1
     shift
-    docker run --rm $extra_args -e DEBIAN_FRONTEND=noninteractive "$IMAGE_ID" "$@"
+    docker run --rm "${bind_mounts[@]}" $extra_args -e DEBIAN_FRONTEND=noninteractive "$IMAGE_ID" "$@"
     echo ""
     echo TEST: OK
     echo ""

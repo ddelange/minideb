@@ -10,4 +10,4 @@ if [[ ! -f /etc/debian_version ]]; then
 fi
 
 apt-get update
-apt-get install -y debootstrap debian-archive-keyring jq dpkg-dev
+apt-get install -y coreutils debootstrap debian-archive-keyring jq dpkg-dev
