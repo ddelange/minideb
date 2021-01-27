@@ -41,7 +41,6 @@ rootfsDir=$(mktemp -d)
 echo "Building base in $rootfsDir"
 DEBOOTSTRAP_DIR="$DEBOOTSTRAP_DIR" debootstrap --keyring "$KEYRING" --variant container --foreign --arch "$PLATFORM" "${DIST}" "$rootfsDir"
 
-usr_bin_modification_time=$(stat -c %y /usr/bin)
 if [ -f "/usr/bin/qemu-aarch64-static" ]; then
     find /usr/bin/ -type f -name 'qemu-*-static' -exec cp {} "$rootfsDir"/usr/bin/. \;
 fi
@@ -263,8 +262,9 @@ du "$rootfsDir" | sort -n | tail -n 20
 echo "Built in $rootfsDir"
 
 if [ -f "/usr/bin/qemu-aarch64-static" ]; then
+    usr_bin_modification_time=$(stat -c %y "$rootfsDir"/usr/bin)
     rm -rf "$rootfsDir"/usr/bin/qemu-*-static
-    touch -d "$usr_bin_modification_time" "$rootfsDir"/usr/bin
+    touch -m -d "$usr_bin_modification_time" "$rootfsDir"/usr/bin
 fi
 
 tar cf "$TARGET" -C "$rootfsDir" .

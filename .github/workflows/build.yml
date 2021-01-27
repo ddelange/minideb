@@ -27,9 +27,14 @@ jobs:
               run: sudo make .installed-requirements
             - name: Build
               run: sudo bash buildone jessie amd64
+            - name: Tag latest
+              run: docker tag "alekitto/minideb:jessie-amd64" "alekitto/minideb:jessie"
             - name: Push
               if: github.ref == 'refs/heads/master'
-              run: sudo bash pushone ${{ matrix.dist }} ${{ matrix.arch }}
+              run: bash pushone jessie amd64 && docker push alekitto/minideb:jessie
+              env:
+                  DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+                  DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
 
     build:
         runs-on: ubuntu-latest
@@ -60,13 +65,54 @@ jobs:
               run: sudo bash buildone_snapshot ${{ matrix.dist }} "$(./snapshot_id)" ${{ matrix.arch }}
             - name: Tag latest
               if: matrix.dist == 'buster' && github.ref == 'refs/heads/master'
-              run: sudo docker tag "alekitto/minideb:${{ matrix.dist }}-${{ matrix.arch }}" "alekitto/minideb:latest-${{ matrix.arch }}"
+              run: docker tag "alekitto/minideb:${{ matrix.dist }}-${{ matrix.arch }}" "alekitto/minideb:latest-${{ matrix.arch }}"
             - name: Push
               if: github.ref == 'refs/heads/master'
-              run: sudo bash pushone ${{ matrix.dist }} ${{ matrix.arch }}
+              run: bash pushone ${{ matrix.dist }} ${{ matrix.arch }}
+              env:
+                  DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+                  DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
             - name: Push snapshot
               if: matrix.dist == 'buster' && github.ref == 'refs/heads/master'
-              run: sudo bash pushone "buster-$(./snapshot_id)" ${{ matrix.arch }}
+              run: bash pushone "buster-snapshot-$(./snapshot_id)" ${{ matrix.arch }}
+              env:
+                  DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+                  DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
             - name: Push latest
               if: matrix.dist == 'buster' && github.ref == 'refs/heads/master'
-              run: sudo bash pushone latest ${{ matrix.arch }}
+              run: bash pushone latest ${{ matrix.arch }}
+              env:
+                  DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+                  DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    deploy:
+        runs-on: ubuntu-latest
+        name: Deploy multiarch manifests
+        needs: [ build_jessie, build ]
+        if: github.ref == 'refs/heads/master'
+        steps:
+            - uses: actions/checkout@v2
+            - name: Create and push manifests
+              env:
+                  DOCKER_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+                  DOCKER_PASSWORD: ${{ secrets.DOCKERHUB_TOKEN }}
+              run: |
+                mkdir -p $HOME/.docker
+                echo "{ \"experimental\": \"enabled\" }" > $HOME/.docker/config.json
+                if [ -n "${DOCKER_PASSWORD:-}" ]; then
+                    docker login -u "$DOCKER_USERNAME" -p "$DOCKER_PASSWORD"
+                fi
+
+                # Create and merge a PR to update minideb-extras
+                # CIRCLE_CI_FUNCTIONS_URL=${CIRCLE_CI_FUNCTIONS_URL:-https://raw.githubusercontent.com/bitnami/test-infra/master/circle/functions}
+                # source <(curl -sSL "$CIRCLE_CI_FUNCTIONS_URL")
+                for DIST in stretch buster latest buster-snapshot-"$(./snapshot_id)"; do
+                    docker manifest create alekitto/minideb:$DIST alekitto/minideb:$DIST-amd64 alekitto/minideb:$DIST-arm64
+                    docker manifest push alekitto/minideb:$DIST
+
+                    docker pull alekitto/minideb:$DIST
+
+                    # Use '.RepoDigests 0' for getting Dockerhub repo digest as it was the first pushed
+                    DIST_REPO_DIGEST=$(docker image inspect --format '{{index .RepoDigests 0}}' "alekitto/minideb:${DIST}")
+                    echo update_minideb_derived "https://github.com/bitnami/minideb-runtimes" "$DIST" "$DIST_REPO_DIGEST"
+                done

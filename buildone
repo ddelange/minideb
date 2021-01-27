@@ -54,29 +54,29 @@ build() {
 
     [ -f "debootstrap/$DIST" ] || (echo "buildall: Unknown distribution: $DIST" && exit 1)
     current_ts="$(date -u +%Y-%m-%dT%H:%M:%S.%NZ)"
-    if docker pull "$BASENAME:$TAG" > /dev/null; then
-        target_ts="$(docker inspect "$BASENAME:$TAG" | jq --raw-output ".[0].Created")"
-        pulled_image_id="$(docker inspect "$BASENAME:$TAG" | jq --raw-output ".[0].Id")"
+    if docker pull "$BASENAME:$TAG-$PLATFORM" > /dev/null; then
+        target_ts="$(docker inspect "$BASENAME:$TAG-$PLATFORM" | jq --raw-output ".[0].Created")"
+        pulled_image_id="$(docker inspect "$BASENAME:$TAG-$PLATFORM" | jq --raw-output ".[0].Id")"
     else
         target_ts="$current_ts"
         pulled_image_id=
     fi
     log "============================================"
-    log "Building $BASENAME:$TAG"
+    log "Building $BASENAME:$TAG-$PLATFORM"
     log "============================================"
     ./mkimage "build/$TAG.tar" "$DIST" "$PLATFORM" "${debian_snapshot_id:-}"
     built_image_id=$(./import "build/$TAG.tar" "$target_ts" "$PLATFORM")
     log "============================================"
-    log "Running tests for $BASENAME:$TAG"
+    log "Running tests for $BASENAME:$TAG-$PLATFORM"
     log "============================================"
     ./test "$built_image_id" "$TAG"
     log "============================================"
-    log "Rebuilding $BASENAME:$TAG to test reproducibility"
+    log "Rebuilding $BASENAME:$TAG-$PLATFORM to test reproducibility"
     log "============================================"
     ./mkimage "build/${TAG}-repro.tar" "$DIST" "$PLATFORM" "${debian_snapshot_id:-}"
     repro_image_id=$(./import "build/${TAG}-repro.tar" "$target_ts" "$PLATFORM")
     if [ "$repro_image_id" != "$built_image_id" ]; then
-        log "$BASENAME:$TAG differs after a rebuild. Examine $built_image_id and $repro_image_id"
+        log "$BASENAME:$TAG-$PLATFORM differs after a rebuild. Examine $built_image_id and $repro_image_id"
         log "to find the differences and fix the build to be reproducible again."
         log "Changes (- first build, + second build):"
         ./dockerdiff "$built_image_id" "$repro_image_id" || true
